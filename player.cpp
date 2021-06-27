@@ -8,6 +8,8 @@
 #include <map>
 #include <sstream>
 #include <cassert>
+#define max(a, b) (a>b ?a: b)
+#define min(a,b) (a<b ?a : b)
 
 struct Point
 {
@@ -129,6 +131,18 @@ public:
     OthelloBoard()
     {
         reset();
+    }
+    OthelloBoard(const OthelloBoard& to_copy){
+        for(int i=0; i<SIZE; i++)
+            for(int j=0; j<SIZE; j++)
+                board[i][j] = to_copy.board[i][j];
+        cur_player = to_copy.cur_player;
+        disc_count[EMPTY] = to_copy.disc_count[EMPTY];
+        disc_count[BLACK] = to_copy.disc_count[BLACK];
+        disc_count[WHITE] = to_copy.disc_count[WHITE];
+        next_valid_spots = to_copy.get_valid_spots();
+        done = to_copy.done;
+        winner = to_copy.winner;
     }
     void reset()
     {
@@ -287,15 +301,16 @@ public:
 };
 
 int importance[8][8] = {
-    1000, -50, 10, 5, 5, 10, -50, 1000,
-    -50, -100, 1, 1, 1, 1, -100, -50,
-    10, 1, 1, 1, 1, 1, 1, 10,
-    10, 1, 1, 1, 1, 1, 1, 10,
-    10, 1, 1, 1, 1, 1, 1, 10,
-    10, 1, 1, 1, 1, 1, 1, 10,
-    -50, -100, 1, 1, 1, 1, -100, -50,
-    1000, -50, 10, 5, 5, 10, -50, 1000
-}
+    500, -25, 10, 5, 5, 10, -25, 500,
+    -25, -50, -5, 1, 1, -5, -50, -25,
+    10, -5, 2, 2, 2, 2, -5, 10,
+    5, 1, 2, -3, -3, 2, 1, 5,
+    5, 1, 2, -3, -3, 2, 1, 5,
+    10, -5, 2, 2, 2, 2, -5, 10,
+    -25, -50, -5, 1, 1, -5, -50, -25,
+    500 , -25, 10, 5, 5, 10, -25, 500,
+};
+
 int player;
 const int SIZE = 8;
 std::array<std::array<int, SIZE>, SIZE> board;
@@ -310,6 +325,93 @@ void read_board(std::ifstream& fin) {
     }
 }
 
+bool is_corner(Point p){
+    if(p.x == 0 || p.x == 7){
+        if(p.y == 0 || p.y == 7)
+            return true;
+    }
+    return false;
+}
+
+bool is_buffer(Point p){
+    if(p.x == 0 || p.x == 7){
+        if(p.y == 1 || p.y == 6)
+            return true;
+    }
+    else if(p.x == 1 || p.x == 6){
+        if(p.y == 1 || p.y == 7)
+            return true;
+    }
+    return false;
+}
+Point closest_corner(Point p){
+    if(p.x + p.y == 1)       // 左上
+        return Point(0,0);
+    else if(p.x + p.y == 13) // 右下
+        return Point(7,7);
+    else if(p.x < p.y)       // 左下
+        return Point(0,7);
+    else                     // 右上
+        return Point(7,0); 
+}
+int set_value(OthelloBoard &cur){
+    int value = 0;
+    //Point p;
+    for(int i=0; i<SIZE; i++){
+        for(int j=0; j<SIZE; j++){
+            if(cur.board[i][j] == player){
+                value += importance[i][j];
+                if(is_buffer(Point(i,j))){ // 已佔據角落，且目前可下的位置跑到buffer
+                    Point corner = closest_corner(Point(i,j));
+                    if(cur.board[corner.x][corner.y] == player) value += 50;
+                }
+            }
+            else if(cur.board[i][j] == (3-player)) // 對手的棋
+                value -= importance[i][j];
+        }
+    }
+    int active_pw = cur.next_valid_spots.size(); // 行動力(可以下的點的總和)
+    value += active_pw * 10;
+    return value;
+}
+
+int minimax(OthelloBoard &board, int depth, int alpha, int beta, int cur_player){
+    if(depth == 3 || board.done){
+        int value = set_value(board);
+        return value;
+    }
+    int best;
+    if(board.cur_player == player){ // 我方
+        best = INT_MIN;
+        for(auto it=board.next_valid_spots.begin(); it!=board.next_valid_spots.end(); it++){
+            OthelloBoard nxt = board;
+            Point p = *it;
+            nxt.put_disc(p);
+            int tmp = minimax(nxt, depth+1, alpha, beta, cur_player);
+            best = max(best, tmp);
+            alpha = max(best, alpha);
+            if(beta <= alpha){
+                break;
+            }
+        }
+    }
+    else{
+        best = INT_MAX;
+        for(auto it=board.next_valid_spots.begin(); it!=board.next_valid_spots.end(); it++){
+            OthelloBoard nxt = board;
+            Point p = *it;
+            nxt.put_disc(p);
+            int tmp = minimax(nxt, depth+1, alpha, beta, 3-cur_player);
+            best = min(best, tmp);
+            beta = min(best, beta);
+            if(beta <= alpha){
+                break;
+            }
+        }
+    }
+    return best;
+}
+
 void read_valid_spots(std::ifstream& fin) {
     int n_valid_spots;
     fin >> n_valid_spots;
@@ -321,13 +423,24 @@ void read_valid_spots(std::ifstream& fin) {
 }
 
 void write_valid_spot(std::ofstream& fout) {
-    int n_valid_spots = next_valid_spots.size();
-    srand(time(NULL));
-    // Choose random spot. (Not random uniform here)
-    int index = (rand() % n_valid_spots);
-    Point p = next_valid_spots[index];
+    //start to choose
+    int cur_heuristic = 0;
+    Point best;
+    for(auto it=next_valid_spots.begin(); it!=next_valid_spots.end(); it++){
+        OthelloBoard nxt;
+        nxt.board = board;
+        nxt.cur_player = player;
+        Point p = *it;
+        nxt.put_disc(p);
+        int nxt_heuristic = minimax(nxt, 0, INT_MIN, INT_MAX, player);
+        if(cur_heuristic < nxt_heuristic){
+            cur_heuristic = nxt_heuristic;
+            best = p;
+        }
+    }
     // Remember to flush the output to ensure the last action is written to file.
-    fout << p.x << " " << p.y << std::endl;
+    fout << best.x << " " << best.y << std::endl;
+    // Choose the spot.
     fout.flush();
 }
 
