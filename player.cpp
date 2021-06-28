@@ -426,7 +426,7 @@ int minimax(OthelloBoard &board, int depth, int alpha, int beta, int cur_player)
         return value;
     }
     int best;
-    if(board.cur_player == player){ // 我方
+    if(board.cur_player == cur_player){ // 我方
         best = INT_MIN;
         for(auto it=board.next_valid_spots.begin(); it!=board.next_valid_spots.end(); it++){
             OthelloBoard nxt = board;
