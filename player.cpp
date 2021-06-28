@@ -8,7 +8,6 @@
 #include <map>
 #include <sstream>
 #include <cassert>
-#include <climits>
 #define max(a, b) (a>b ?a: b)
 #define min(a,b) (a<b ?a : b)
 
@@ -358,49 +357,48 @@ Point closest_corner(Point p){
 int count_stability(OthelloBoard &cur){ // 這裡只考慮最外圍相連的棋子
     int stability = 0;
     int A_row = 0, H_row = 0, A_column = 0, H_column = 0;
-    if(cur.board[0][0] == player){
-        for(int j=1; j<SIZE && cur.board[0][j] == player; j++){ // 直排
+    if(cur.board[0][0] == cur.cur_player){
+        for(int j=1; j<SIZE && cur.board[0][j] == cur.cur_player; j++){ // 直排
              stability++;
              if(j == 7) A_column = 1; // 第ㄧ直排都為我方棋子
         }
-        for(int j=1; j<SIZE && cur.board[j][0] == player; j++){ // 橫排
+        for(int j=1; j<SIZE && cur.board[j][0] == cur.cur_player; j++){ // 橫排
             stability++;
             if(j == 7) A_row = 1; // 第ㄧ橫排都為我方棋子
          }
     }
-    if(cur.board[0][7] == player){
-        for(int j=7; j>0 && cur.board[0][j] == player && !A_column; j--){ // 直排
+    if(cur.board[0][7] == cur.cur_player){
+        for(int j=6; j>0 && cur.board[0][j] == cur.cur_player && !A_column; j--){ // 直排
              stability++;
         }
-        for(int j=1; j<SIZE && cur.board[j][7] == player; j++){ // 橫排
+        for(int j=1; j<SIZE && cur.board[j][7] == cur.cur_player; j++){ // 橫排
             stability++;
             if(j == 7) H_row = 1; // 最下方橫排都為我方棋子
         }
     }
-    if(cur.board[7][0] == player){
-        for(int j=1; j<SIZE && cur.board[7][j] == player; j++){ // 直排
+    if(cur.board[7][0] == cur.cur_player){
+        for(int j=1; j<SIZE && cur.board[7][j] == cur.cur_player; j++){ // 直排
              stability++;
              if(j == 7) H_column = 1; // 最右直排都為我方棋子
         }
-        for(int j=6; j>=0 && cur.board[j][7] == player && !A_row; j--){ // 橫排
+        for(int j=6; j>=0 && cur.board[j][7] == cur.cur_player && !A_row; j--){ // 橫排
             stability++;
         }
     }
-    if(cur.board[7][7] == player){
-        for(int j=6; j>=0 && cur.board[7][j] == player && !H_column; j--){ // 直排
+    if(cur.board[7][7] == cur.cur_player){
+        for(int j=6; j>=0 && cur.board[7][j] == cur.cur_player && !H_column; j--){ // 直排
              stability++;
         }
-        for(int j=6; j>=0 && cur.board[j][7] == player && !H_row; j--){ // 橫排
+        for(int j=6; j>=0 && cur.board[j][7] == cur.cur_player && !H_row; j--){ // 橫排
             stability++;
         }
     }
     return stability;
 }
-
 int set_value(OthelloBoard &cur){
     int value = 0;
     //Point p;
-    for(int i=0; i<SIZE; i++){ //算基本的黑棋、白棋差值 * 各方個的importance......(1)
+    for(int i=0; i<SIZE; i++){
         for(int j=0; j<SIZE; j++){
             if(cur.board[i][j] == player){
                 value += importance[i][j];
@@ -413,10 +411,9 @@ int set_value(OthelloBoard &cur){
                 value -= importance[i][j];
         }
     }
-    int stability = count_stability(cur); //  穩定子......(2)
-    int active_pw = cur.next_valid_spots.size(); // 行動力(可以下的點的總和)......(3)
+    int active_pw = cur.next_valid_spots.size(); // 行動力(可以下的點的總和)
+    int stability = count_stability(cur);
     value += active_pw * 10 + stability * 3;
-    
     return value;
 }
 
@@ -426,7 +423,7 @@ int minimax(OthelloBoard &board, int depth, int alpha, int beta, int cur_player)
         return value;
     }
     int best;
-    if(board.cur_player == cur_player){ // 我方
+    if(board.cur_player == player){ // 我方
         best = INT_MIN;
         for(auto it=board.next_valid_spots.begin(); it!=board.next_valid_spots.end(); it++){
             OthelloBoard nxt = board;
@@ -468,6 +465,7 @@ void read_valid_spots(std::ifstream& fin) {
 }
 
 void write_valid_spot(std::ofstream& fout) {
+    //int n_valid_spots = next_valid_spots.size();
     //start to choose
     int cur_heuristic = 0;
     Point best;
@@ -478,13 +476,14 @@ void write_valid_spot(std::ofstream& fout) {
         Point p = *it;
         nxt.put_disc(p);
         int nxt_heuristic = minimax(nxt, 0, INT_MIN, INT_MAX, player);
-        if(cur_heuristic < nxt_heuristic){ // 有找到更好的
+        if(cur_heuristic < nxt_heuristic){
             cur_heuristic = nxt_heuristic;
             best = p;
         }
     }
     // Remember to flush the output to ensure the last action is written to file.
     fout << best.x << " " << best.y << std::endl;
+    //fout << "VALUE: "<< cur_heuristic << std::endl;
     // Choose the spot.
     fout.flush();
 }
