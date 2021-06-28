@@ -8,6 +8,7 @@
 #include <map>
 #include <sstream>
 #include <cassert>
+#include <climits>
 #define max(a, b) (a>b ?a: b)
 #define min(a,b) (a<b ?a : b)
 
@@ -354,10 +355,52 @@ Point closest_corner(Point p){
     else                     // 右上
         return Point(7,0); 
 }
+int count_stability(OthelloBoard &cur){ // 這裡只考慮最外圍相連的棋子
+    int stability = 0;
+    int A_row = 0, H_row = 0, A_column = 0, H_column = 0;
+    if(cur.board[0][0] == player){
+        for(int j=1; j<SIZE && cur.board[0][j] == player; j++){ // 直排
+             stability++;
+             if(j == 7) A_column = 1; // 第ㄧ直排都為我方棋子
+        }
+        for(int j=1; j<SIZE && cur.board[j][0] == player; j++){ // 橫排
+            stability++;
+            if(j == 7) A_row = 1; // 第ㄧ橫排都為我方棋子
+         }
+    }
+    if(cur.board[0][7] == player){
+        for(int j=7; j>0 && cur.board[0][j] == player && !A_column; j--){ // 直排
+             stability++;
+        }
+        for(int j=1; j<SIZE && cur.board[j][7] == player; j++){ // 橫排
+            stability++;
+            if(j == 7) H_row = 1; // 最下方橫排都為我方棋子
+        }
+    }
+    if(cur.board[7][0] == player){
+        for(int j=1; j<SIZE && cur.board[7][j] == player; j++){ // 直排
+             stability++;
+             if(j == 7) H_column = 1; // 最右直排都為我方棋子
+        }
+        for(int j=6; j>=0 && cur.board[j][7] == player && !A_row; j--){ // 橫排
+            stability++;
+        }
+    }
+    if(cur.board[7][7] == player){
+        for(int j=6; j>=0 && cur.board[7][j] == player && !H_column; j--){ // 直排
+             stability++;
+        }
+        for(int j=6; j>=0 && cur.board[j][7] == player && !H_row; j--){ // 橫排
+            stability++;
+        }
+    }
+    return stability;
+}
+
 int set_value(OthelloBoard &cur){
     int value = 0;
     //Point p;
-    for(int i=0; i<SIZE; i++){
+    for(int i=0; i<SIZE; i++){ //算基本的黑棋、白棋差值 * 各方個的importance......(1)
         for(int j=0; j<SIZE; j++){
             if(cur.board[i][j] == player){
                 value += importance[i][j];
@@ -370,8 +413,10 @@ int set_value(OthelloBoard &cur){
                 value -= importance[i][j];
         }
     }
-    int active_pw = cur.next_valid_spots.size(); // 行動力(可以下的點的總和)
-    value += active_pw * 10;
+    int stability = count_stability(cur); //  穩定子......(2)
+    int active_pw = cur.next_valid_spots.size(); // 行動力(可以下的點的總和)......(3)
+    value += active_pw * 10 + stability * 3;
+    
     return value;
 }
 
@@ -433,7 +478,7 @@ void write_valid_spot(std::ofstream& fout) {
         Point p = *it;
         nxt.put_disc(p);
         int nxt_heuristic = minimax(nxt, 0, INT_MIN, INT_MAX, player);
-        if(cur_heuristic < nxt_heuristic){
+        if(cur_heuristic < nxt_heuristic){ // 有找到更好的
             cur_heuristic = nxt_heuristic;
             best = p;
         }
