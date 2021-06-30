@@ -398,7 +398,6 @@ int count_stability(OthelloBoard &cur){ // 這裡只考慮最外圍相連的棋�
 }
 int set_value(OthelloBoard &cur){
     int value = 0;
-    //Point p;
     for(int i=0; i<SIZE; i++){
         for(int j=0; j<SIZE; j++){
             if(cur.board[i][j] == player){
@@ -413,7 +412,7 @@ int set_value(OthelloBoard &cur){
         }
     }
     int active_pw = cur.next_valid_spots.size(); // 行動力(可以下的點的總和)
-    int stability = count_stability(cur);
+    int stability = count_stability(cur); // 穩定子
     value += active_pw * 10 + stability * 3;
     return value;
 }
@@ -423,36 +422,30 @@ int minimax(OthelloBoard &board, int depth, int alpha, int beta, int cur_player)
         int value = set_value(board);
         return value;
     }
-    int best;
     if(board.cur_player == player){ // 我方
-        best = INT_MIN;
         for(auto it=board.next_valid_spots.begin(); it!=board.next_valid_spots.end(); it++){
             OthelloBoard nxt = board;
             Point p = *it;
             nxt.put_disc(p);
-            int tmp = minimax(nxt, depth+1, alpha, beta, cur_player);
-            best = max(best, tmp);
-            alpha = max(best, alpha);
+            alpha = max(alpha, minimax(nxt, depth+1, alpha, beta, cur_player));
             if(beta <= alpha){
                 break;
             }
         }
+        return alpha;
     }
     else{
-        best = INT_MAX;
         for(auto it=board.next_valid_spots.begin(); it!=board.next_valid_spots.end(); it++){
             OthelloBoard nxt = board;
             Point p = *it;
             nxt.put_disc(p);
-            int tmp = minimax(nxt, depth+1, alpha, beta, 3-cur_player);
-            best = min(best, tmp);
-            beta = min(best, beta);
+            beta = min(beta, minimax(nxt, depth+1, alpha, beta, 3-cur_player));
             if(beta <= alpha){
                 break;
             }
         }
+        return beta;
     }
-    return best;
 }
 
 void read_valid_spots(std::ifstream& fin) {
@@ -466,7 +459,6 @@ void read_valid_spots(std::ifstream& fin) {
 }
 
 void write_valid_spot(std::ofstream& fout) {
-    //int n_valid_spots = next_valid_spots.size();
     //start to choose
     int cur_heuristic = 0;
     Point best;
@@ -484,7 +476,6 @@ void write_valid_spot(std::ofstream& fout) {
     }
     // Remember to flush the output to ensure the last action is written to file.
     fout << best.x << " " << best.y << std::endl;
-    //fout << "VALUE: "<< cur_heuristic << std::endl;
     // Choose the spot.
     fout.flush();
 }
